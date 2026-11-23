@@ -1,0 +1,77 @@
+# Robot Incident Triage
+
+**Find robot control-loop failures automatically, trace each one back to where the chain started, and group them into fault families. No hand-written timestamps, no grepping ten services by hand.**
+
+On a robot fleet, an operator sees a freeze right away. An engineer often understands its cause weeks later, because everything in between is manual: someone writes the time down (in local time, to the minute, sometimes not at all), converts it to UTC, greps logs across services, and guesses. The same fault ends up spread across many tickets and gets rediscovered each time.
+
+This tool closes that gap:
+
+1. **Detect.** Watch the control-command stream and flag every break: a gap > 100 ms, or a rate < 48 Hz for ≥ 2 s.
+2. **Collect context.** Pull a −20 s / +10 s window from every service's logs and normalize the lines into templates (numbers → `<N>`).
+3. **Find what's unusual.** A template counts as anomalous when it shows up around the event far more often than in quiet time (Poisson test, p < 0.01, in the wide window or within ±1 s of the gap edges). This filters out background noise such as periodic CAN probes, UI polling and recorder rollovers.
+4. **Find the root.** Take the earliest anomalous template as the root and group events by root. A second pass catches rare noise that happens to land inside a known chain and folds that event back into its real family.
+5. **Report.** Produce a self-contained HTML page: fault families with their typical chain and timing, a timeline of detected events vs. operator notes, and a clickable event feed with the full log window for each event.
+
+**[Live sample report →](https://abylaydospayev.github.io/robot-incident-triage/)**
+
+Pure Python 3.11+ standard library. No dependencies.
+
+## Quick start
+
+```bash
+python simulate.py --out runs/demo --hours 2 --seed 7
+python triage.py runs/demo
+# open runs/demo/triage/report.html
+```
+
+## The simulator
+
+`simulate.py` generates a realistic synthetic station, since real fleet data isn't public:
+
+- a 60 Hz control loop and 7 services' logs;
+- background noise that looks alarming but is harmless;
+- operator notes as a human would actually write them;
+- ground truth for evaluation.
+
+| Fault family | Upstream cause | What it looks like |
+|---|---|---|
+| `camera_empty` | camera returns empty frames → policy server HTTP 503 | 0.8–9 s command gap; > 3 s means the arm drops |
+| `clock_step` | system clock steps → frames dropped → same chain as above | 1–3.5 s gap |
+| `solver_stall` | scheduler / planner stalls 110–200 ms, recurring ~every 90 s | short stutter |
+| `thermal` | GPU throttles → control rate drops to 34–42 Hz | low-rate error → robot sent home |
+
+The triage step knows none of this. It only sees telemetry and logs.
+
+## Results (4 random seeds, 2 h each)
+
+| Metric | Value |
+|---|---|
+| Injected faults detected | **100%** |
+| False positives | **0** |
+| Fault-family purity | **100%** (every family holds a single true cause) |
+| Faults the simulated operator wrote down | ~20–33% |
+
+Arm drops are a useful side finding: the watchdog error code fires on only some of them, while command-gap length catches all of them. An error-code count undercounts the most dangerous failure.
+
+**Caveat:** simulated signals are cleaner than production logs. Real logs overlap and drift, so thresholds will need tuning against real data.
+
+## Layout
+
+```
+simulate.py   synthetic station + fault injection + ground truth
+triage.py     detect → context → anomaly test → root → families → evaluation
+report.py     self-contained HTML report
+docs/         sample report (served by GitHub Pages)
+```
+
+## Roadmap
+
+- [ ] Adapters for real sources: Datadog / Loki APIs, MCAP topics
+- [ ] Live mode: tail logs and put an event in the feed within seconds
+- [ ] LLM summary per fault family + draft ticket (one ticket per family, not per event)
+- [ ] Vision detector (frozen DINOv2 + small head) for failures that leave no log trace, such as a dropped object or an arm hitting the table without an error code
+- [ ] Overlapping faults, multi-station fleets
+
+## License
+
+MIT

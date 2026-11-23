@@ -1,0 +1,1630 @@
+<!doctype html><html lang=en><head><meta charset=utf-8><meta name=viewport content='width=device-width,initial-scale=1'><title>Robot Incident Triage</title><style>
+:root{--bg:#f7f7f5;--panel:#fff;--ink:#1d1d1b;--mute:#6b6b66;--line:#e4e3de;--code:#f1f0ec;
+--hi:#fff4d6;--c0:#2f6fdf;--c1:#d9572b;--c2:#1f9d74;--c3:#9a4fd1;--c4:#c8961a;--c5:#d63f7a;
+--high:#c4372b;--med:#c27c0e;--low:#6b6b66}
+@media (prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#151514;--panel:#1e1e1c;--ink:#ecebe6;
+--mute:#9a9992;--line:#2f2f2c;--code:#262624;--hi:#3a3220;--c0:#6b9cf5;--c1:#f0815a;--c2:#4cc79d;--c3:#bd86ec;
+--c4:#e3b94a;--c5:#ef75a4;--high:#f06b5e;--med:#e7a63c;--low:#9a9992}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);
+font:15px/1.5 -apple-system,Segoe UI,Inter,Roboto,sans-serif}
+main{max-width:1080px;margin:0 auto;padding:32px 16px 64px}
+h1{font-size:26px;margin:0 0 4px}h2{font-size:18px;margin:36px 0 12px}
+.sub{color:var(--mute);margin:0 0 24px}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px}
+.stat{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.stat b{display:block;font-size:26px;font-variant-numeric:tabular-nums}.stat span{color:var(--mute);font-size:13px}
+.fam{background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--c);border-radius:10px;
+padding:16px;margin-bottom:12px}
+.fam header{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:baseline}
+.fam .n{font-size:22px;font-weight:700;font-variant-numeric:tabular-nums}
+.fam .root{font-weight:600;word-break:break-word}
+.pill{font-size:12px;padding:2px 8px;border-radius:99px;border:1px solid currentColor}
+.pill.high{color:var(--high)}.pill.med{color:var(--med)}.pill.low{color:var(--low)}
+.meta{color:var(--mute);font-size:13px;margin:6px 0 10px}
+ol.chain{list-style:none;margin:0;padding:0}
+ol.chain li{display:grid;grid-template-columns:78px 1fr;gap:10px;padding:6px 0;border-top:1px dashed var(--line)}
+.off{font:12px ui-monospace,Consolas,monospace;color:var(--mute);text-align:right;padding-top:2px}
+.svc{font:12px ui-monospace,Consolas,monospace;background:var(--code);padding:1px 6px;border-radius:4px}
+.ex{display:block;color:var(--mute);font:12px ui-monospace,Consolas,monospace;word-break:break-all}
+.timeline{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;overflow:hidden}
+.timeline svg{width:100%;height:auto;display:block}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--mute);margin-top:8px}
+.legend i{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--c);margin-right:6px}
+details.ev{background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:6px}
+details.ev summary{cursor:pointer;padding:9px 12px;display:grid;grid-template-columns:14px 140px 92px 1fr;
+gap:10px;align-items:center;list-style:none}
+details.ev summary::-webkit-details-marker{display:none}
+.dot{width:10px;height:10px;border-radius:50%;background:var(--c)}
+.t{font:13px ui-monospace,Consolas,monospace}.g{font:13px ui-monospace,Consolas,monospace;color:var(--mute)}
+.note{font-size:12px;color:var(--c2);margin-left:8px}
+.logs{margin:0;padding:10px 12px;background:var(--code);border-top:1px solid var(--line);
+font:12px/1.55 ui-monospace,Consolas,monospace;overflow-x:auto;max-height:340px}
+.logs div{white-space:pre}.logs .u{background:var(--hi);font-weight:600}.logs .mark{color:var(--high)}
+table{border-collapse:collapse;width:100%;background:var(--panel);border:1px solid var(--line);border-radius:10px;
+overflow:hidden;font-variant-numeric:tabular-nums}
+th,td{padding:8px 12px;border-bottom:1px solid var(--line);text-align:left;font-size:14px}th{color:var(--mute);font-weight:600}
+.explain{color:var(--mute);font-size:14px;max-width:760px}
+@media (max-width:640px){details.ev summary{grid-template-columns:14px 1fr;}
+details.ev summary .g,details.ev summary .r{grid-column:2}}
+</style></head><body><main>
+<h1>Robot incident triage</h1>
+<p class=sub>Station run 2026-03-02 · 17:00:00–18:59:59 UTC (10:00:00 AM–11:59:59 AM Pacific) · 428,888 control messages · 5,028 log lines</p>
+<div class=stats><div class=stat><b>48</b><span>control-loop breaks detected</span></div><div class=stat><b>4</b><span>fault families (by first anomaly)</span></div><div class=stat><b>5</b><span>long gaps ≥ 3 s (drop risk)</span></div><div class=stat><b>14/48</b><span>events the operator wrote down</span></div><div class=stat><b>48/48</b><span>injected faults found (sim ground truth)</span></div></div>
+<h2>Fault families</h2><p class=explain>Each event is grouped by the <b>earliest log template that is unusual around it</b> compared with quiet time. The chain shows what typically happens, with the median time relative to the start of the control break.</p>
+<section class=fam style='--c:var(--c0)'><header><span class=n>×35</span><span class=root><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span><span class='pill low'>short stutter</span></header><div class=meta>first 18:01:39 · last 18:58:16 UTC · gap 0.12–0.21 s · sim truth: <b>solver_stall</b></div><ol class=chain>
+<li><span class=off>+0.16 s</span><span><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=ex>controller: scheduler cycle overrun: 43.17 ms</span></span></li>
+<li><span class=off>+0.16 s</span><span><span class="svc">controller</span> predicting pose ahead by &lt;N&gt;s<span class=ex>controller: predicting pose ahead by 0.1604s</span></span></li>
+<li><span class=off>+0.17 s</span><span><span class="svc">controller</span> planner tick late by &lt;N&gt;s<span class=ex>controller: planner tick late by 0.2154s</span></span></li>
+</ol></section>
+<section class=fam style='--c:var(--c1)'><header><span class=n>×7</span><span class=root><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame</span><span class='pill high'>long control gaps: arm may drop</span></header><div class=meta>first 17:08:34 · last 17:53:52 UTC · gap 0.83–8.36 s · sim truth: <b>camera_empty</b></div><ol class=chain>
+<li><span class=off>-0.30 s</span><span><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=ex>policy_client: camera &#x27;cam_top&#x27; returned empty frame</span></span></li>
+<li><span class=off>-0.29 s</span><span><span class="svc">policy_client</span> policy server responded HTTP &lt;N&gt;<span class=ex>policy_client: policy server responded HTTP 503</span></span></li>
+<li><span class=off>+3.29 s</span><span><span class="svc">controller</span> no fresh command for &lt;N&gt;s, holding last target<span class=ex>controller: no fresh command for 0.92s, holding last target</span></span></li>
+</ol></section>
+<section class=fam style='--c:var(--c2)'><header><span class=n>×3</span><span class=root><span class="svc">timesync</span> system clock stepped by &lt;N&gt;s</span><span class='pill high'>long control gaps: arm may drop</span></header><div class=meta>first 17:22:13 · last 17:56:43 UTC · gap 1.75–3.08 s · sim truth: <b>clock_step</b></div><ol class=chain>
+<li><span class=off>-0.49 s</span><span><span class="svc">timesync</span> system clock stepped by &lt;N&gt;s<span class=ex>timesync: system clock stepped by -0.464s</span></span></li>
+<li><span class=off>-0.45 s</span><span><span class="svc">policy_client</span> frame timestamp out of range, dropping<span class=ex>policy_client: frame timestamp out of range, dropping</span></span></li>
+<li><span class=off>-0.29 s</span><span><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=ex>policy_client: camera &#x27;cam_top&#x27; returned empty frame</span></span></li>
+<li><span class=off>-0.29 s</span><span><span class="svc">policy_client</span> policy server responded HTTP &lt;N&gt;<span class=ex>policy_client: policy server responded HTTP 503</span></span></li>
+<li><span class=off>+2.14 s</span><span><span class="svc">controller</span> no fresh command for &lt;N&gt;s, holding last target<span class=ex>controller: no fresh command for 3.07s, holding last target</span></span></li>
+</ol></section>
+<section class=fam style='--c:var(--c3)'><header><span class=n>×3</span><span class=root><span class="svc">sysmon</span> gpu clock throttled to &lt;N&gt;% (temp &lt;N&gt; C)</span><span class='pill med'>visible freeze / robot interrupted</span></header><div class=meta>first 18:18:32 · last 18:43:54 UTC ·  · low control rate · sim truth: <b>thermal</b></div><ol class=chain>
+<li><span class=off>-1.43 s</span><span><span class="svc">sysmon</span> gpu clock throttled to &lt;N&gt;% (temp &lt;N&gt; C)<span class=ex>sysmon: gpu clock throttled to 62% (temp 92 C)</span></span></li>
+<li><span class=off>+3.07 s</span><span><span class="svc">hw_driver</span> E_CTRL_LOW_RATE: control rate low (&lt;N&gt; Hz)<span class=ex>hw_driver: E_CTRL_LOW_RATE: control rate low (35.9 Hz)</span></span></li>
+<li><span class=off>+3.12 s</span><span><span class="svc">controller</span> sending robot to home pose<span class=ex>controller: sending robot to home pose</span></span></li>
+<li><span class=off>+10.45 s</span><span><span class="svc">sysmon</span> gpu clock restored<span class=ex>sysmon: gpu clock restored</span></span></li>
+</ol></section>
+<h2>Timeline</h2><div class=timeline><svg viewBox='0 0 1000 120' role=img aria-label='timeline of events'><line x1=10.0 x2=10.0 y1=8 y2=102 stroke='var(--line)'/><text x=10.0 y=116 font-size=11 fill='var(--mute)' text-anchor=middle>17:00</text><line x1=255.0 x2=255.0 y1=8 y2=102 stroke='var(--line)'/><text x=255.0 y=116 font-size=11 fill='var(--mute)' text-anchor=middle>17:30</text><line x1=500.0 x2=500.0 y1=8 y2=102 stroke='var(--line)'/><text x=500.0 y=116 font-size=11 fill='var(--mute)' text-anchor=middle>18:00</text><line x1=745.0 x2=745.0 y1=8 y2=102 stroke='var(--line)'/><text x=745.0 y=116 font-size=11 fill='var(--mute)' text-anchor=middle>18:30</text><text x=10 y=16 font-size=11 fill='var(--mute)'>detected</text><text x=10 y=76 font-size=11 fill='var(--mute)'>operator notes</text><circle cx=80.0 cy=42 r=4.8 fill='var(--c1)' fill-opacity=.75><title>17:08:34 gap 0.92s</title></circle><circle cx=159.1 cy=42 r=6.6 fill='var(--c1)' fill-opacity=.75><title>17:18:15 gap 2.91s</title></circle><circle cx=191.5 cy=42 r=6.8 fill='var(--c2)' fill-opacity=.75><title>17:22:13 gap 3.08s</title></circle><circle cx=211.0 cy=42 r=7.0 fill='var(--c1)' fill-opacity=.75><title>17:24:36 gap 3.28s</title></circle><circle cx=299.0 cy=42 r=5.6 fill='var(--c2)' fill-opacity=.75><title>17:35:23 gap 1.75s</title></circle><circle cx=320.9 cy=42 r=9.1 fill='var(--c1)' fill-opacity=.75><title>17:38:03 gap 5.68s</title></circle><circle cx=370.0 cy=42 r=10.6 fill='var(--c1)' fill-opacity=.75><title>17:44:04 gap 7.34s</title></circle><circle cx=436.9 cy=42 r=11.2 fill='var(--c1)' fill-opacity=.75><title>17:52:16 gap 8.36s</title></circle><circle cx=450.0 cy=42 r=4.7 fill='var(--c1)' fill-opacity=.75><title>17:53:52 gap 0.83s</title></circle><circle cx=473.2 cy=42 r=5.9 fill='var(--c2)' fill-opacity=.75><title>17:56:43 gap 2.13s</title></circle><circle cx=513.6 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:01:39 gap 0.20s</title></circle><circle cx=525.5 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:03:07 gap 0.12s</title></circle><circle cx=537.1 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:04:32 gap 0.16s</title></circle><circle cx=549.1 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:06:00 gap 0.14s</title></circle><circle cx=561.3 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:07:30 gap 0.17s</title></circle><circle cx=572.9 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:08:55 gap 0.16s</title></circle><circle cx=585.2 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:10:25 gap 0.15s</title></circle><circle cx=597.4 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:11:55 gap 0.19s</title></circle><circle cx=610.3 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:13:30 gap 0.16s</title></circle><circle cx=621.8 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:14:55 gap 0.14s</title></circle><circle cx=633.7 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:16:22 gap 0.15s</title></circle><circle cx=651.4 cy=42 r=6.0 fill='var(--c3)' fill-opacity=.75><title>18:18:32 gap 0.00s</title></circle><circle cx=669.0 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:20:41 gap 0.17s</title></circle><circle cx=681.3 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:22:11 gap 0.14s</title></circle><circle cx=693.7 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:23:43 gap 0.21s</title></circle><circle cx=706.6 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:25:18 gap 0.15s</title></circle><circle cx=718.2 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:26:42 gap 0.16s</title></circle><circle cx=733.3 cy=42 r=6.0 fill='var(--c3)' fill-opacity=.75><title>18:28:34 gap 0.00s</title></circle><circle cx=742.0 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:29:37 gap 0.17s</title></circle><circle cx=753.9 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:31:05 gap 0.13s</title></circle><circle cx=766.2 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:32:35 gap 0.17s</title></circle><circle cx=779.1 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:34:10 gap 0.19s</title></circle><circle cx=790.8 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:35:36 gap 0.19s</title></circle><circle cx=803.2 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:37:07 gap 0.13s</title></circle><circle cx=815.1 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:38:35 gap 0.18s</title></circle><circle cx=826.7 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:40:00 gap 0.18s</title></circle><circle cx=838.9 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:41:29 gap 0.13s</title></circle><circle cx=851.2 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:42:59 gap 0.18s</title></circle><circle cx=858.5 cy=42 r=6.0 fill='var(--c3)' fill-opacity=.75><title>18:43:54 gap 0.00s</title></circle><circle cx=876.8 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:46:08 gap 0.18s</title></circle><circle cx=889.4 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:47:40 gap 0.12s</title></circle><circle cx=901.9 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:49:12 gap 0.19s</title></circle><circle cx=914.4 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:50:44 gap 0.14s</title></circle><circle cx=926.4 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:52:12 gap 0.16s</title></circle><circle cx=939.3 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:53:47 gap 0.15s</title></circle><circle cx=950.8 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:55:11 gap 0.19s</title></circle><circle cx=963.3 cy=42 r=4.2 fill='var(--c0)' fill-opacity=.75><title>18:56:43 gap 0.18s</title></circle><circle cx=975.9 cy=42 r=4.1 fill='var(--c0)' fill-opacity=.75><title>18:58:16 gap 0.12s</title></circle><rect x=73.8 y=82 width=3 height=14 fill='var(--ink)'><title>10:08 freeze</title></rect><rect x=155.5 y=82 width=3 height=14 fill='var(--ink)'><title>10:18 freeze</title></rect><rect x=196.3 y=82 width=3 height=14 fill='var(--ink)'><title>10:23 arms dropped on table</title></rect><rect x=212.7 y=82 width=3 height=14 fill='var(--ink)'><title>10:25 arms dropped on table</title></rect><rect x=294.3 y=82 width=3 height=14 fill='var(--ink)'><title>10:35 freeze</title></rect><rect x=310.7 y=82 width=3 height=14 fill='var(--ink)'><title>10:37 arms dropped on table</title></rect><rect x=376.0 y=82 width=3 height=14 fill='var(--ink)'><title>10:45 arms dropped on table</title></rect><rect x=514.8 y=82 width=3 height=14 fill='var(--ink)'><title>11:02 stutter</title></rect><rect x=523.0 y=82 width=3 height=14 fill='var(--ink)'><title>11:03 stutter</title></rect><rect x=776.2 y=82 width=3 height=14 fill='var(--ink)'><title>11:34 stutter</title></rect><rect x=800.7 y=82 width=3 height=14 fill='var(--ink)'><title>11:37 stutter</title></rect><rect x=890.5 y=82 width=3 height=14 fill='var(--ink)'><title>11:48 stutter</title></rect><rect x=923.2 y=82 width=3 height=14 fill='var(--ink)'><title>11:52 stutter</title></rect><rect x=923.2 y=82 width=3 height=14 fill='var(--ink)'><title>11:52 stutter</title></rect><rect x=931.3 y=82 width=3 height=14 fill='var(--ink)'><title>11:53 stutter</title></rect><rect x=955.8 y=82 width=3 height=14 fill='var(--ink)'><title>11:56 stutter</title></rect></svg><div class=legend><span style='--c:var(--c0)'><i></i>scheduler cycle overrun: &lt;N&gt; ms</span><span style='--c:var(--c1)'><i></i>camera &#x27;cam_top&#x27; returned empty frame</span><span style='--c:var(--c2)'><i></i>system clock stepped by &lt;N&gt;s</span><span style='--c:var(--c3)'><i></i>gpu clock throttled to &lt;N&gt;% (temp &lt;N&gt; C)</span></div></div>
+<h2>Check against simulator ground truth</h2><table><tr><th>Injected fault</th><th>Count</th><th>Found by tool</th><th>Written down by operator</th></tr>
+<tr><td>camera_empty</td><td>7</td><td>7</td><td>5</td></tr>
+<tr><td>clock_step</td><td>3</td><td>3</td><td>2</td></tr>
+<tr><td>solver_stall</td><td>35</td><td>35</td><td>9</td></tr>
+<tr><td>thermal</td><td>3</td><td>3</td><td>0</td></tr>
+</table>
+<p class=explain>False positives: <b>0</b>. Family purity: family 0: 35/35 solver_stall · family 1: 7/7 camera_empty · family 2: 3/3 clock_step · family 3: 3/3 thermal. Physical arm drops: 5, of which only 3 logged a watchdog error — the error code alone undercounts drops, the control-gap length does not.</p>
+<h2>Event feed</h2><p class=explain>Click an event to see every log line in its context window. Unusual lines are highlighted.</p>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:08:34.416</span><span class=g>gap 0.92 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=note>✎ 10:08 freeze</span></span></summary><div class=logs>
+<div>17:08:14.663 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:16.664 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:18.670 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:20.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>17:08:20.696 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:22.738 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:24.732 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:26.743 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:28.744 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:08:30.266 recorder       INFO    recording segment closed in 0.65s</div>
+<div>17:08:30.745 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:32.764 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:08:34.117 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:08:34.121 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:08:34.358 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:08:34.362 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:08:34.416 ────</div>
+<div class=u>17:08:34.587 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:08:34.591 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:08:34.759 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:08:34.814 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:08:34.818 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:08:35.346 controller     WARNING no fresh command for 0.92s, holding last target</div>
+<div>17:08:36.763 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:38.761 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:40.003 controller     INFO    FPS summary: joint_control=54.7 Hz</div>
+<div>17:08:40.805 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:42.825 ui_api         INFO    GET /api/status 200</div>
+<div>17:08:44.862 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:18:15.466</span><span class=g>gap 2.91 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=note>✎ 10:18 freeze</span></span></summary><div class=logs>
+<div>17:17:56.203 ui_api         INFO    GET /api/status 200</div>
+<div>17:17:58.180 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:00.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>17:18:00.135 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:02.095 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:04.129 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:06.107 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:08.151 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:10.003 controller     INFO    FPS summary: joint_control=60.2 Hz</div>
+<div>17:18:10.126 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:12.102 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:14.103 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:18:15.167 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:15.171 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:15.388 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:15.392 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:18:15.466 ────</div>
+<div class=u>17:18:15.650 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:15.654 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:15.882 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:15.886 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:18:16.072 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:18:16.118 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:16.122 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:16.396 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:16.400 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:16.654 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:16.658 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:16.910 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:16.914 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:17.169 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:17.173 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:17.425 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:17.429 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:17.687 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:17.691 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:18:17.925 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:18:17.929 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:18:18.060 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:18:18.385 controller     WARNING no fresh command for 2.91s, holding last target</div>
+<div>17:18:20.003 controller     INFO    FPS summary: joint_control=42.7 Hz</div>
+<div>17:18:20.105 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:22.144 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:24.175 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:26.188 ui_api         INFO    GET /api/status 200</div>
+<div>17:18:28.229 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c2)'><summary><span class=dot></span><span class=t>17:22:13.108</span><span class=g>gap 3.08 s</span><span class=r><span class="svc">timesync</span> system clock stepped by &lt;N&gt;s<span class=note>✎ 10:23 arms dropped on table</span></span></summary><div class=logs>
+<div>17:21:53.979 ui_api         INFO    GET /api/status 200</div>
+<div>17:21:55.975 ui_api         INFO    GET /api/status 200</div>
+<div>17:21:58.021 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:22:00.035 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:02.074 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:04.071 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:06.045 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:08.019 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:10.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>17:22:10.065 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:12.086 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:22:12.614 timesync       WARNING system clock stepped by -0.464s</div>
+<div class=u>17:22:12.664 policy_client  WARNING frame timestamp out of range, dropping</div>
+<div class=u>17:22:12.814 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:12.818 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:13.047 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:13.051 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:22:13.108 ────</div>
+<div class=u>17:22:13.319 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:13.323 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:13.587 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:13.591 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:13.847 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:13.851 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:22:14.067 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:22:14.084 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:14.088 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:14.304 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:14.308 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:14.536 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:14.540 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:14.810 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:14.814 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:15.039 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:15.043 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:15.299 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:15.303 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:15.554 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:15.558 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:22:15.814 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:22:15.818 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:22:16.019 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:22:16.196 controller     WARNING no fresh command for 3.07s, holding last target</div>
+<div>17:22:18.019 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:20.003 controller     INFO    FPS summary: joint_control=41.6 Hz</div>
+<div>17:22:20.036 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:22.028 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:24.004 ui_api         INFO    GET /api/status 200</div>
+<div>17:22:26.021 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:24:36.578</span><span class=g>gap 3.28 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=note>✎ 10:25 arms dropped on table</span></span></summary><div class=logs>
+<div>17:24:17.898 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:19.930 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:24:21.963 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:23.956 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:25.911 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:27.908 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:29.895 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:24:30.085 recorder       INFO    recording segment closed in 0.71s</div>
+<div>17:24:31.937 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:33.907 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:35.893 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:24:36.279 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:36.283 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:36.545 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:36.549 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:24:36.578 ────</div>
+<div class=u>17:24:36.774 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:36.778 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:37.030 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:37.034 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:37.309 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:37.313 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:37.575 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:37.579 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:37.796 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:37.800 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:24:37.933 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:24:38.020 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:38.024 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:38.247 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:38.251 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:38.508 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:38.512 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:38.764 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:38.768 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:39.016 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:39.020 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:39.263 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:39.267 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:39.507 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:24:39.511 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:24:39.579 hw_driver      ERROR   E_CTRL_EXPIRED: control watchdog expired</div>
+<div class=u>17:24:39.872 controller     WARNING no fresh command for 3.28s, holding last target</div>
+<div>17:24:39.886 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:40.003 controller     INFO    FPS summary: joint_control=40.4 Hz</div>
+<div>17:24:41.877 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:43.908 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:45.935 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:47.889 ui_api         INFO    GET /api/status 200</div>
+<div>17:24:49.842 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c2)'><summary><span class=dot></span><span class=t>17:35:23.271</span><span class=g>gap 1.75 s</span><span class=r><span class="svc">timesync</span> system clock stepped by &lt;N&gt;s<span class=note>✎ 10:35 freeze</span></span></summary><div class=logs>
+<div>17:35:03.581 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:05.532 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:05.657 hw_driver      WARNING node left_arm did not answer status probe</div>
+<div>17:35:06.657 hw_driver      WARNING node right_arm did not answer status probe</div>
+<div>17:35:07.517 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:07.657 hw_driver      WARNING node torso did not answer status probe</div>
+<div>17:35:08.657 hw_driver      WARNING node base did not answer status probe</div>
+<div>17:35:09.478 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:09.657 hw_driver      WARNING node head did not answer status probe</div>
+<div>17:35:10.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>17:35:10.657 hw_driver      INFO    status probe done: 0 of 5 nodes answered</div>
+<div>17:35:11.463 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:13.436 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:15.444 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:17.453 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:19.424 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:35:21.436 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:35:22.777 timesync       WARNING system clock stepped by -0.530s</div>
+<div class=u>17:35:22.827 policy_client  WARNING frame timestamp out of range, dropping</div>
+<div class=u>17:35:22.977 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:22.981 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:35:23.213 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:23.217 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:35:23.271 ────</div>
+<div>17:35:23.433 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:35:23.489 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:23.493 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:35:23.765 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:23.769 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:35:24.006 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:24.010 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:35:24.259 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:24.263 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:35:24.489 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:35:24.493 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:35:25.027 controller     WARNING no fresh command for 1.74s, holding last target</div>
+<div>17:35:25.397 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:27.441 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:29.415 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:29.980 recorder       INFO    recording segment closed in 0.64s</div>
+<div>17:35:30.003 controller     INFO    FPS summary: joint_control=49.7 Hz</div>
+<div>17:35:31.380 ui_api         INFO    GET /api/status 200</div>
+<div>17:35:33.339 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:38:03.800</span><span class=g>gap 5.68 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=note>✎ 10:37 arms dropped on table</span></span></summary><div class=logs>
+<div>17:37:45.251 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:47.296 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:49.321 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:50.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:37:51.303 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:53.341 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:55.324 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:57.298 ui_api         INFO    GET /api/status 200</div>
+<div>17:37:59.339 ui_api         INFO    GET /api/status 200</div>
+<div>17:38:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:38:01.352 ui_api         INFO    GET /api/status 200</div>
+<div>17:38:03.371 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:38:03.501 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:03.505 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:03.769 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:03.773 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:38:03.800 ────</div>
+<div class=u>17:38:03.994 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:03.998 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:04.217 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:04.221 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:04.470 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:04.474 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:04.707 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:04.711 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:04.951 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:04.955 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:05.172 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:05.176 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:38:05.388 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:38:05.436 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:05.440 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:05.658 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:05.662 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:05.928 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:05.932 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:06.196 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:06.200 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:06.444 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:06.448 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:06.671 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:06.675 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:06.930 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:06.934 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:07.163 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:07.167 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:07.408 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:07.412 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:38:07.436 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:38:07.635 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:07.639 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:07.914 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:07.918 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:08.166 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:08.170 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:08.407 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:08.411 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:08.633 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:08.637 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:08.897 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:08.901 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:38:09.168 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:38:09.172 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:38:09.432 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:38:09.487 controller     WARNING no fresh command for 5.68s, holding last target</div>
+<div>17:38:10.003 controller     INFO    FPS summary: joint_control=26.0 Hz</div>
+<div>17:38:11.466 ui_api         INFO    GET /api/status 200</div>
+<div>17:38:13.486 ui_api         INFO    GET /api/status 200</div>
+<div>17:38:15.522 ui_api         INFO    GET /api/status 200</div>
+<div>17:38:17.516 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:44:04.894</span><span class=g>gap 7.34 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=note>✎ 10:45 arms dropped on table</span></span></summary><div class=logs>
+<div>17:43:45.085 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:47.078 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:49.085 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:50.003 controller     INFO    FPS summary: joint_control=59.8 Hz</div>
+<div>17:43:51.110 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:53.102 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:55.075 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:57.097 ui_api         INFO    GET /api/status 200</div>
+<div>17:43:59.135 ui_api         INFO    GET /api/status 200</div>
+<div>17:44:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:44:01.163 ui_api         INFO    GET /api/status 200</div>
+<div>17:44:03.183 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:44:04.601 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:04.605 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:04.876 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:04.880 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:44:04.894 ────</div>
+<div class=u>17:44:05.146 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:05.150 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:44:05.218 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:44:05.409 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:05.413 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:05.631 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:05.635 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:05.892 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:05.896 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:06.163 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:06.167 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:06.409 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:06.413 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:06.681 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:06.685 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:06.912 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:06.916 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:07.189 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:07.193 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:44:07.236 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:44:07.435 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:07.439 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:07.697 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:07.701 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:07.901 hw_driver      ERROR   E_CTRL_EXPIRED: control watchdog expired</div>
+<div class=u>17:44:07.933 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:07.937 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:08.171 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:08.175 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:08.412 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:08.416 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:08.651 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:08.655 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:08.877 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:08.881 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:09.123 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:09.127 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:44:09.250 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:44:09.402 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:09.406 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:09.661 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:09.665 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:09.937 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:09.941 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:44:10.003 controller     INFO    FPS summary: joint_control=29.5 Hz</div>
+<div class=u>17:44:10.203 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:10.207 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:10.473 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:10.477 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:10.753 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:10.757 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:11.018 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:11.022 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:44:11.245 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:44:11.255 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:11.259 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:11.490 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:11.494 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:11.734 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:44:11.738 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:44:12.243 controller     WARNING no fresh command for 7.33s, holding last target</div>
+<div>17:44:13.227 ui_api         INFO    GET /api/status 200</div>
+<div>17:44:15.239 ui_api         INFO    GET /api/status 200</div>
+<div>17:44:17.199 ui_api         INFO    GET /api/status 200</div>
+<div>17:44:19.191 ui_api         INFO    GET /api/status 200</div>
+<div>17:44:20.003 controller     INFO    FPS summary: joint_control=46.6 Hz</div>
+<div>17:44:21.219 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:52:16.392</span><span class=g>gap 8.36 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame</span></summary><div class=logs>
+<div>17:51:57.589 ui_api         INFO    GET /api/status 200</div>
+<div>17:51:59.596 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:00.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>17:52:01.550 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:03.512 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:05.543 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:07.551 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:09.592 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:10.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:52:11.587 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:13.538 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:15.527 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:52:16.105 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:16.109 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:16.345 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:16.349 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:52:16.392 ────</div>
+<div class=u>17:52:16.611 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:16.615 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:16.878 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:16.882 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:17.151 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:17.155 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:17.419 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:17.423 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:52:17.536 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:52:17.671 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:17.675 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:17.897 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:17.901 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:18.167 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:18.171 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:18.405 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:18.409 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:18.663 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:18.667 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:18.905 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:18.909 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:19.157 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:19.161 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:19.405 hw_driver      ERROR   E_CTRL_EXPIRED: control watchdog expired</div>
+<div class=u>17:52:19.435 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:19.439 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:52:19.580 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:52:19.665 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:19.669 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:19.917 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:19.921 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:52:20.003 controller     INFO    FPS summary: joint_control=38.4 Hz</div>
+<div class=u>17:52:20.176 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:20.180 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:20.428 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:20.432 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:20.704 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:20.708 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:20.949 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:20.953 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:21.224 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:21.228 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:21.485 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:21.489 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:52:21.628 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:52:21.763 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:21.767 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:21.988 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:21.992 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:22.221 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:22.225 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:22.458 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:22.462 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:22.733 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:22.737 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:22.954 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:22.958 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:23.189 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:23.193 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:23.452 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:23.456 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:52:23.626 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:52:23.732 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:23.736 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:23.962 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:23.966 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:24.208 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:52:24.212 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:52:24.767 controller     WARNING no fresh command for 8.35s, holding last target</div>
+<div>17:52:25.617 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:27.577 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:29.137 recorder       INFO    recording segment closed in 0.72s</div>
+<div>17:52:29.592 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:30.003 controller     INFO    FPS summary: joint_control=31.4 Hz</div>
+<div>17:52:31.563 ui_api         INFO    GET /api/status 200</div>
+<div>17:52:33.528 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:53:52.614</span><span class=g>gap 0.83 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame</span></summary><div class=logs>
+<div>17:53:33.443 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:35.401 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:37.382 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:39.405 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:40.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>17:53:41.371 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:43.407 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:45.406 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:47.362 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:49.349 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:50.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>17:53:51.356 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:53:52.320 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:53:52.324 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:53:52.592 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:53:52.596 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:53:52.614 ────</div>
+<div class=u>17:53:52.845 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:53:52.849 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:53:53.114 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:53:53.118 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:53:53.350 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:53:53.449 controller     WARNING no fresh command for 0.82s, holding last target</div>
+<div>17:53:55.368 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:57.332 ui_api         INFO    GET /api/status 200</div>
+<div>17:53:59.362 ui_api         INFO    GET /api/status 200</div>
+<div>17:54:00.003 controller     INFO    FPS summary: joint_control=55.1 Hz</div>
+<div>17:54:01.348 ui_api         INFO    GET /api/status 200</div>
+<div>17:54:03.363 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c2)'><summary><span class=dot></span><span class=t>17:56:43.035</span><span class=g>gap 2.13 s</span><span class=r><span class="svc">timesync</span> system clock stepped by &lt;N&gt;s</span></summary><div class=logs>
+<div>17:56:23.860 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:25.828 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:27.849 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:29.489 recorder       INFO    recording segment closed in 0.70s</div>
+<div>17:56:29.835 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>17:56:31.841 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:33.832 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:35.833 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:37.798 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:39.753 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:40.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>17:56:41.802 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:56:42.537 timesync       WARNING system clock stepped by +2.333s</div>
+<div class=u>17:56:42.587 policy_client  WARNING frame timestamp out of range, dropping</div>
+<div class=u>17:56:42.737 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:42.741 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:43.011 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:43.015 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=mark>──── control break starts 17:56:43.035 ────</div>
+<div class=u>17:56:43.246 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:43.250 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:43.490 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:43.494 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:43.752 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:43.756 policy_client  ERROR   policy server responded HTTP 503</div>
+<div>17:56:43.790 ui_api         INFO    GET /api/status 200</div>
+<div class=u>17:56:43.982 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:43.986 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:44.261 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:44.265 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:44.534 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:44.538 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:44.806 policy_client  ERROR   camera &#x27;cam_top&#x27; returned empty frame</div>
+<div class=u>17:56:44.810 policy_client  ERROR   policy server responded HTTP 503</div>
+<div class=u>17:56:45.172 controller     WARNING no fresh command for 2.13s, holding last target</div>
+<div>17:56:45.750 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:47.764 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:49.792 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:50.003 controller     INFO    FPS summary: joint_control=47.2 Hz</div>
+<div>17:56:51.758 ui_api         INFO    GET /api/status 200</div>
+<div>17:56:53.768 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:01:39.993</span><span class=g>gap 0.20 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:02 stutter</span></span></summary><div class=logs>
+<div>18:01:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:01:21.600 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:23.603 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:25.571 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:01:27.310 controller     WARNING scheduler cycle overrun: 43.17 ms</div>
+<div>18:01:27.565 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:29.354 recorder       INFO    recording segment closed in 0.67s</div>
+<div>18:01:29.606 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:30.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:01:31.578 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:33.585 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:35.549 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:37.517 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:39.544 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:01:39.993 ────</div>
+<div>18:01:40.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div class=u>18:01:40.190 controller     WARNING scheduler cycle overrun: 190.36 ms</div>
+<div class=u>18:01:40.192 controller     WARNING predicting pose ahead by 0.1604s</div>
+<div class=u>18:01:40.200 controller     WARNING planner tick late by 0.2154s</div>
+<div>18:01:41.565 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:43.535 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:45.493 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:47.452 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:49.462 ui_api         INFO    GET /api/status 200</div>
+<div>18:01:50.003 controller     INFO    FPS summary: joint_control=58.9 Hz</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:03:07.142</span><span class=g>gap 0.12 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:03 stutter</span></span></summary><div class=logs>
+<div>18:02:47.440 ui_api         INFO    GET /api/status 200</div>
+<div>18:02:49.390 ui_api         INFO    GET /api/status 200</div>
+<div>18:02:50.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:02:51.392 ui_api         INFO    GET /api/status 200</div>
+<div>18:02:53.387 ui_api         INFO    GET /api/status 200</div>
+<div>18:02:55.389 ui_api         INFO    GET /api/status 200</div>
+<div>18:02:57.351 ui_api         INFO    GET /api/status 200</div>
+<div>18:02:59.372 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:03:01.404 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:03.440 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:05.422 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:03:07.142 ────</div>
+<div class=u>18:03:07.265 controller     WARNING scheduler cycle overrun: 110.68 ms</div>
+<div class=u>18:03:07.267 controller     WARNING predicting pose ahead by 0.0807s</div>
+<div class=u>18:03:07.275 controller     WARNING planner tick late by 0.1357s</div>
+<div>18:03:07.444 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:09.432 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:10.003 controller     INFO    FPS summary: joint_control=59.5 Hz</div>
+<div>18:03:11.457 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:13.413 ui_api         INFO    GET /api/status 200</div>
+<div>18:03:15.450 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:04:32.337</span><span class=g>gap 0.16 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:04:13.217 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:15.179 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:17.170 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:19.133 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:20.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:04:21.142 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:23.179 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:25.143 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:27.151 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:29.136 recorder       INFO    recording segment closed in 0.71s</div>
+<div>18:04:29.175 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:04:31.142 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:04:32.337 ────</div>
+<div class=u>18:04:32.494 controller     WARNING scheduler cycle overrun: 143.97 ms</div>
+<div class=u>18:04:32.496 controller     WARNING predicting pose ahead by 0.1140s</div>
+<div class=u>18:04:32.504 controller     WARNING planner tick late by 0.1690s</div>
+<div>18:04:33.174 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:35.218 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:37.207 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:39.199 ui_api         INFO    GET /api/status 200</div>
+<div>18:04:40.003 controller     INFO    FPS summary: joint_control=59.0 Hz</div>
+<div>18:04:41.233 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:06:00.779</span><span class=g>gap 0.14 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:05:41.419 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:43.433 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:45.463 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:47.502 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:49.540 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:50.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:05:51.494 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:53.508 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:55.485 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:57.502 ui_api         INFO    GET /api/status 200</div>
+<div>18:05:59.480 ui_api         INFO    GET /api/status 200</div>
+<div>18:06:00.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div class=mark>──── control break starts 18:06:00.779 ────</div>
+<div class=u>18:06:00.917 controller     WARNING scheduler cycle overrun: 135.37 ms</div>
+<div class=u>18:06:00.919 controller     WARNING predicting pose ahead by 0.1054s</div>
+<div class=u>18:06:00.927 controller     WARNING planner tick late by 0.1604s</div>
+<div>18:06:01.484 ui_api         INFO    GET /api/status 200</div>
+<div>18:06:03.526 ui_api         INFO    GET /api/status 200</div>
+<div>18:06:05.539 ui_api         INFO    GET /api/status 200</div>
+<div>18:06:07.514 ui_api         INFO    GET /api/status 200</div>
+<div>18:06:09.516 ui_api         INFO    GET /api/status 200</div>
+<div>18:06:10.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:07:30.442</span><span class=g>gap 0.17 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:07:11.368 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:13.349 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:15.323 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:17.295 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:19.296 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:07:21.285 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:23.293 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:25.244 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:27.230 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:29.266 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:29.594 recorder       INFO    recording segment closed in 0.71s</div>
+<div>18:07:30.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div class=mark>──── control break starts 18:07:30.442 ────</div>
+<div class=u>18:07:30.607 controller     WARNING scheduler cycle overrun: 153.87 ms</div>
+<div class=u>18:07:30.609 controller     WARNING predicting pose ahead by 0.1239s</div>
+<div class=u>18:07:30.617 controller     WARNING planner tick late by 0.1789s</div>
+<div>18:07:31.240 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:33.245 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:35.245 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:37.223 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:39.272 ui_api         INFO    GET /api/status 200</div>
+<div>18:07:40.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:08:55.768</span><span class=g>gap 0.16 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:08:37.393 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:39.356 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:40.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:08:41.393 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:43.343 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:45.370 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:47.378 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:49.378 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:50.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:08:51.424 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:53.432 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:55.423 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:08:55.768 ────</div>
+<div class=u>18:08:55.932 controller     WARNING scheduler cycle overrun: 159.98 ms</div>
+<div class=u>18:08:55.934 controller     WARNING predicting pose ahead by 0.1300s</div>
+<div class=u>18:08:55.942 controller     WARNING planner tick late by 0.1850s</div>
+<div>18:08:57.452 ui_api         INFO    GET /api/status 200</div>
+<div>18:08:59.489 ui_api         INFO    GET /api/status 200</div>
+<div>18:09:00.003 controller     INFO    FPS summary: joint_control=59.0 Hz</div>
+<div>18:09:01.500 ui_api         INFO    GET /api/status 200</div>
+<div>18:09:03.488 ui_api         INFO    GET /api/status 200</div>
+<div>18:09:05.483 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:10:25.675</span><span class=g>gap 0.15 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:10:06.548 hw_driver      WARNING node torso did not answer status probe</div>
+<div>18:10:07.515 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:07.548 hw_driver      WARNING node base did not answer status probe</div>
+<div>18:10:08.548 hw_driver      WARNING node head did not answer status probe</div>
+<div>18:10:09.519 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:09.548 hw_driver      INFO    status probe done: 0 of 5 nodes answered</div>
+<div>18:10:10.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:10:11.569 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:13.571 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:15.573 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:17.591 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:19.580 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:10:21.566 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:23.575 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:25.560 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:10:25.675 ────</div>
+<div class=u>18:10:25.824 controller     WARNING scheduler cycle overrun: 146.42 ms</div>
+<div class=u>18:10:25.826 controller     WARNING predicting pose ahead by 0.1164s</div>
+<div class=u>18:10:25.834 controller     WARNING planner tick late by 0.1714s</div>
+<div>18:10:27.605 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:29.313 recorder       INFO    recording segment closed in 0.69s</div>
+<div>18:10:29.623 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:30.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+<div>18:10:31.625 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:33.585 ui_api         INFO    GET /api/status 200</div>
+<div>18:10:35.573 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:11:55.496</span><span class=g>gap 0.19 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:11:35.780 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:37.793 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:39.803 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:40.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:11:41.788 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:43.838 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:45.851 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:47.806 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:49.797 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:50.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:11:51.826 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:53.806 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:11:55.496 ────</div>
+<div class=u>18:11:55.690 controller     WARNING scheduler cycle overrun: 193.08 ms</div>
+<div class=u>18:11:55.692 controller     WARNING predicting pose ahead by 0.1631s</div>
+<div class=u>18:11:55.700 controller     WARNING planner tick late by 0.2181s</div>
+<div>18:11:55.825 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:57.776 ui_api         INFO    GET /api/status 200</div>
+<div>18:11:59.756 ui_api         INFO    GET /api/status 200</div>
+<div>18:12:00.003 controller     INFO    FPS summary: joint_control=59.0 Hz</div>
+<div>18:12:01.790 ui_api         INFO    GET /api/status 200</div>
+<div>18:12:03.799 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:13:30.406</span><span class=g>gap 0.16 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:13:11.596 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:13.551 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:15.590 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:17.598 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:19.644 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:13:21.638 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:23.650 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:25.625 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:27.580 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:29.280 recorder       INFO    recording segment closed in 0.65s</div>
+<div>18:13:29.623 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div class=mark>──── control break starts 18:13:30.406 ────</div>
+<div class=u>18:13:30.564 controller     WARNING scheduler cycle overrun: 148.32 ms</div>
+<div class=u>18:13:30.566 controller     WARNING predicting pose ahead by 0.1183s</div>
+<div class=u>18:13:30.574 controller     WARNING planner tick late by 0.1733s</div>
+<div>18:13:31.658 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:33.640 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:35.680 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:37.711 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:39.692 ui_api         INFO    GET /api/status 200</div>
+<div>18:13:40.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:14:55.135</span><span class=g>gap 0.14 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:14:35.579 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:37.548 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:39.527 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:40.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:14:41.500 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:43.454 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:45.470 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:47.454 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:49.420 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:50.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:14:51.441 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:53.400 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:14:55.135 ────</div>
+<div class=u>18:14:55.271 controller     WARNING scheduler cycle overrun: 127.17 ms</div>
+<div class=u>18:14:55.273 controller     WARNING predicting pose ahead by 0.0972s</div>
+<div class=u>18:14:55.281 controller     WARNING planner tick late by 0.1522s</div>
+<div>18:14:55.377 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:57.410 ui_api         INFO    GET /api/status 200</div>
+<div>18:14:59.373 ui_api         INFO    GET /api/status 200</div>
+<div>18:15:00.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+<div>18:15:01.367 ui_api         INFO    GET /api/status 200</div>
+<div>18:15:03.401 ui_api         INFO    GET /api/status 200</div>
+<div>18:15:04.171 hw_driver      WARNING node left_arm did not answer status probe</div>
+<div>18:15:05.171 hw_driver      WARNING node right_arm did not answer status probe</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:16:22.332</span><span class=g>gap 0.15 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:16:03.376 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:05.365 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:07.324 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:09.292 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:10.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:16:11.327 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:13.309 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:15.325 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:17.286 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:19.292 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:16:21.278 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:16:22.332 ────</div>
+<div class=u>18:16:22.487 controller     WARNING scheduler cycle overrun: 149.95 ms</div>
+<div class=u>18:16:22.489 controller     WARNING predicting pose ahead by 0.1200s</div>
+<div class=u>18:16:22.497 controller     WARNING planner tick late by 0.1750s</div>
+<div>18:16:23.278 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:25.258 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:27.215 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:29.162 recorder       INFO    recording segment closed in 0.67s</div>
+<div>18:16:29.196 ui_api         INFO    GET /api/status 200</div>
+<div>18:16:30.003 controller     INFO    FPS summary: joint_control=59.0 Hz</div>
+<div>18:16:31.168 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c3)'><summary><span class=dot></span><span class=t>18:18:32.000</span><span class=g>min 35 Hz</span><span class=r><span class="svc">sysmon</span> gpu clock throttled to &lt;N&gt;% (temp &lt;N&gt; C)</span></summary><div class=logs>
+<div>18:18:12.937 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:14.911 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:16.872 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:18.902 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:18:20.873 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:22.914 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:24.939 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:26.898 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:28.864 recorder       INFO    recording segment closed in 0.72s</div>
+<div>18:18:28.917 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:30.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div class=u>18:18:30.566 sysmon         WARNING gpu clock throttled to 62% (temp 92 C)</div>
+<div>18:18:30.906 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:18:32.000 ────</div>
+<div>18:18:32.931 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:34.964 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:18:35.066 hw_driver      ERROR   E_CTRL_LOW_RATE: control rate low (35.9 Hz)</div>
+<div class=u>18:18:35.116 controller     INFO    sending robot to home pose</div>
+<div>18:18:36.942 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:38.901 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:40.003 controller     INFO    FPS summary: joint_control=40.9 Hz</div>
+<div>18:18:40.946 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:42.938 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:18:43.185 sysmon         INFO    gpu clock restored</div>
+<div>18:18:44.981 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:47.000 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:49.024 ui_api         INFO    GET /api/status 200</div>
+<div>18:18:50.003 controller     INFO    FPS summary: joint_control=52.2 Hz</div>
+<div>18:18:51.057 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:20:41.940</span><span class=g>gap 0.17 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:20:23.035 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:24.996 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:26.975 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:28.961 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:29.017 recorder       INFO    recording segment closed in 0.72s</div>
+<div>18:20:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:20:30.932 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:32.888 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:34.866 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:36.836 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:20:37.535 controller     WARNING scheduler cycle overrun: 67.91 ms</div>
+<div>18:20:38.856 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:40.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:20:40.851 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:20:41.940 ────</div>
+<div class=u>18:20:42.112 controller     WARNING scheduler cycle overrun: 155.84 ms</div>
+<div class=u>18:20:42.114 controller     WARNING predicting pose ahead by 0.1258s</div>
+<div class=u>18:20:42.122 controller     WARNING planner tick late by 0.1808s</div>
+<div>18:20:42.812 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:44.794 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:46.791 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:48.777 ui_api         INFO    GET /api/status 200</div>
+<div>18:20:50.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:20:50.744 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:22:11.751</span><span class=g>gap 0.14 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:21:52.700 ui_api         INFO    GET /api/status 200</div>
+<div>18:21:54.729 ui_api         INFO    GET /api/status 200</div>
+<div>18:21:56.762 ui_api         INFO    GET /api/status 200</div>
+<div>18:21:58.786 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:00.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:22:00.769 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:02.737 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:04.770 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:06.752 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:08.739 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:10.003 controller     INFO    FPS summary: joint_control=59.8 Hz</div>
+<div>18:22:10.744 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:22:11.751 ────</div>
+<div class=u>18:22:11.893 controller     WARNING scheduler cycle overrun: 129.43 ms</div>
+<div class=u>18:22:11.895 controller     WARNING predicting pose ahead by 0.0994s</div>
+<div class=u>18:22:11.903 controller     WARNING planner tick late by 0.1544s</div>
+<div>18:22:12.731 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:14.764 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:16.738 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:18.692 ui_api         INFO    GET /api/status 200</div>
+<div>18:22:20.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:22:20.699 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:23:43.085</span><span class=g>gap 0.21 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:23:24.708 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:26.741 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:28.781 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:28.885 recorder       INFO    recording segment closed in 0.68s</div>
+<div>18:23:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:23:30.748 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:32.728 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:34.722 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:36.728 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:38.713 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:40.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:23:40.683 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:42.641 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:23:43.085 ────</div>
+<div class=u>18:23:43.297 controller     WARNING scheduler cycle overrun: 199.99 ms</div>
+<div class=u>18:23:43.299 controller     WARNING predicting pose ahead by 0.1700s</div>
+<div class=u>18:23:43.307 controller     WARNING planner tick late by 0.2250s</div>
+<div>18:23:44.623 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:46.619 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:48.667 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:50.003 controller     INFO    FPS summary: joint_control=58.7 Hz</div>
+<div>18:23:50.707 ui_api         INFO    GET /api/status 200</div>
+<div>18:23:52.744 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:25:18.229</span><span class=g>gap 0.15 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:24:58.779 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:25:00.754 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:02.713 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:04.022 hw_driver      WARNING node left_arm did not answer status probe</div>
+<div>18:25:04.716 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:05.022 hw_driver      WARNING node right_arm did not answer status probe</div>
+<div>18:25:06.022 hw_driver      WARNING node torso did not answer status probe</div>
+<div>18:25:06.692 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:07.022 hw_driver      WARNING node base did not answer status probe</div>
+<div>18:25:08.022 hw_driver      WARNING node head did not answer status probe</div>
+<div>18:25:08.691 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:09.022 hw_driver      INFO    status probe done: 0 of 5 nodes answered</div>
+<div>18:25:10.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:25:10.696 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:25:11.861 controller     WARNING scheduler cycle overrun: 45.61 ms</div>
+<div>18:25:12.669 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:14.676 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:16.637 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:25:18.229 ────</div>
+<div class=u>18:25:18.382 controller     WARNING scheduler cycle overrun: 143.86 ms</div>
+<div class=u>18:25:18.384 controller     WARNING predicting pose ahead by 0.1139s</div>
+<div class=u>18:25:18.392 controller     WARNING planner tick late by 0.1689s</div>
+<div>18:25:18.639 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:20.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+<div>18:25:20.647 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:22.605 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:24.596 ui_api         INFO    GET /api/status 200</div>
+<div>18:25:26.554 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:26:42.945</span><span class=g>gap 0.16 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:26:24.620 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:26.626 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:28.661 recorder       INFO    recording segment closed in 0.74s</div>
+<div>18:26:28.668 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:30.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:26:30.705 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:32.672 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:34.696 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:36.680 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:38.707 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:40.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:26:40.725 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:42.757 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:26:42.945 ────</div>
+<div class=u>18:26:43.106 controller     WARNING scheduler cycle overrun: 148.87 ms</div>
+<div class=u>18:26:43.108 controller     WARNING predicting pose ahead by 0.1189s</div>
+<div class=u>18:26:43.116 controller     WARNING planner tick late by 0.1739s</div>
+<div>18:26:44.720 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:46.707 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:48.731 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:50.003 controller     INFO    FPS summary: joint_control=59.1 Hz</div>
+<div>18:26:50.776 ui_api         INFO    GET /api/status 200</div>
+<div>18:26:52.798 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c3)'><summary><span class=dot></span><span class=t>18:28:34.000</span><span class=g>min 39 Hz</span><span class=r><span class="svc">sysmon</span> gpu clock throttled to &lt;N&gt;% (temp &lt;N&gt; C)</span></summary><div class=logs>
+<div>18:28:14.618 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:16.652 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:18.641 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:20.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:28:20.679 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:22.690 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:24.647 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:26.630 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:28.602 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:28.946 recorder       INFO    recording segment closed in 0.66s</div>
+<div>18:28:30.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:28:30.641 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:32.650 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:28:32.820 sysmon         WARNING gpu clock throttled to 66% (temp 91 C)</div>
+<div class=mark>──── control break starts 18:28:34.000 ────</div>
+<div>18:28:34.605 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:36.572 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:28:37.320 hw_driver      ERROR   E_CTRL_LOW_RATE: control rate low (39.3 Hz)</div>
+<div class=u>18:28:37.370 controller     INFO    sending robot to home pose</div>
+<div>18:28:38.558 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:40.003 controller     INFO    FPS summary: joint_control=48.3 Hz</div>
+<div>18:28:40.554 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:28:41.317 sysmon         INFO    gpu clock restored</div>
+<div>18:28:42.562 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:44.551 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:46.536 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:48.487 ui_api         INFO    GET /api/status 200</div>
+<div>18:28:50.003 controller     INFO    FPS summary: joint_control=57.3 Hz</div>
+<div>18:28:50.495 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:29:37.872</span><span class=g>gap 0.17 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:29:18.397 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:29:20.447 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:22.400 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:24.406 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:26.433 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:28.470 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:29.071 recorder       INFO    recording segment closed in 0.73s</div>
+<div>18:29:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:29:30.498 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:32.511 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:34.525 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:36.511 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:29:37.872 ────</div>
+<div class=u>18:29:38.043 controller     WARNING scheduler cycle overrun: 155.94 ms</div>
+<div class=u>18:29:38.045 controller     WARNING predicting pose ahead by 0.1259s</div>
+<div class=u>18:29:38.053 controller     WARNING planner tick late by 0.1809s</div>
+<div>18:29:38.489 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:40.003 controller     INFO    FPS summary: joint_control=58.9 Hz</div>
+<div>18:29:40.519 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:42.556 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:44.600 ui_api         INFO    GET /api/status 200</div>
+<div>18:29:46.618 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:31:05.667</span><span class=g>gap 0.13 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:30:46.373 ui_api         INFO    GET /api/status 200</div>
+<div>18:30:48.417 ui_api         INFO    GET /api/status 200</div>
+<div>18:30:50.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:30:50.401 ui_api         INFO    GET /api/status 200</div>
+<div>18:30:52.443 ui_api         INFO    GET /api/status 200</div>
+<div>18:30:54.451 ui_api         INFO    GET /api/status 200</div>
+<div>18:30:56.409 ui_api         INFO    GET /api/status 200</div>
+<div>18:30:58.377 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:00.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:31:00.385 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:02.434 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:04.419 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:31:05.667 ────</div>
+<div class=u>18:31:05.802 controller     WARNING scheduler cycle overrun: 119.13 ms</div>
+<div class=u>18:31:05.804 controller     WARNING predicting pose ahead by 0.0891s</div>
+<div class=u>18:31:05.812 controller     WARNING planner tick late by 0.1441s</div>
+<div>18:31:06.447 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:08.440 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:10.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+<div>18:31:10.477 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:12.433 ui_api         INFO    GET /api/status 200</div>
+<div>18:31:14.432 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:32:35.396</span><span class=g>gap 0.17 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:32:16.418 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:18.409 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:20.003 controller     INFO    FPS summary: joint_control=59.8 Hz</div>
+<div>18:32:20.427 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:22.410 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:24.366 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:26.357 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:28.312 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:28.761 recorder       INFO    recording segment closed in 0.60s</div>
+<div>18:32:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:32:30.325 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:32.308 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:34.308 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:32:35.396 ────</div>
+<div class=u>18:32:35.563 controller     WARNING scheduler cycle overrun: 152.16 ms</div>
+<div class=u>18:32:35.565 controller     WARNING predicting pose ahead by 0.1222s</div>
+<div class=u>18:32:35.573 controller     WARNING planner tick late by 0.1772s</div>
+<div>18:32:36.317 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:38.293 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:40.003 controller     INFO    FPS summary: joint_control=59.0 Hz</div>
+<div>18:32:40.289 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:42.241 ui_api         INFO    GET /api/status 200</div>
+<div>18:32:44.283 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:34:10.760</span><span class=g>gap 0.19 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:34 stutter</span></span></summary><div class=logs>
+<div>18:33:52.299 ui_api         INFO    GET /api/status 200</div>
+<div>18:33:54.314 ui_api         INFO    GET /api/status 200</div>
+<div>18:33:56.342 ui_api         INFO    GET /api/status 200</div>
+<div>18:33:58.328 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:00.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:34:00.377 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:02.350 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:04.375 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:06.334 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:08.287 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:10.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:34:10.251 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:34:10.760 ────</div>
+<div class=u>18:34:10.946 controller     WARNING scheduler cycle overrun: 180.66 ms</div>
+<div class=u>18:34:10.948 controller     WARNING predicting pose ahead by 0.1507s</div>
+<div class=u>18:34:10.956 controller     WARNING planner tick late by 0.2057s</div>
+<div>18:34:12.207 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:14.207 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:16.212 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:18.180 ui_api         INFO    GET /api/status 200</div>
+<div>18:34:20.003 controller     INFO    FPS summary: joint_control=58.9 Hz</div>
+<div>18:34:20.224 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:35:36.335</span><span class=g>gap 0.19 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:35:18.260 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:35:20.232 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:22.208 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:24.184 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:26.177 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:28.150 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:29.035 recorder       INFO    recording segment closed in 0.68s</div>
+<div>18:35:30.003 controller     INFO    FPS summary: joint_control=59.8 Hz</div>
+<div>18:35:30.121 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:32.147 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:34.161 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:36.141 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:35:36.335 ────</div>
+<div class=u>18:35:36.528 controller     WARNING scheduler cycle overrun: 182.61 ms</div>
+<div class=u>18:35:36.530 controller     WARNING predicting pose ahead by 0.1526s</div>
+<div class=u>18:35:36.538 controller     WARNING planner tick late by 0.2076s</div>
+<div>18:35:38.190 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:40.003 controller     INFO    FPS summary: joint_control=59.1 Hz</div>
+<div>18:35:40.162 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:42.169 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:44.135 ui_api         INFO    GET /api/status 200</div>
+<div>18:35:46.171 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:37:07.910</span><span class=g>gap 0.13 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:37 stutter</span></span></summary><div class=logs>
+<div>18:36:48.272 ui_api         INFO    GET /api/status 200</div>
+<div>18:36:50.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:36:50.239 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:36:50.862 controller     WARNING scheduler cycle overrun: 44.88 ms</div>
+<div>18:36:52.257 ui_api         INFO    GET /api/status 200</div>
+<div>18:36:54.216 ui_api         INFO    GET /api/status 200</div>
+<div>18:36:56.200 ui_api         INFO    GET /api/status 200</div>
+<div>18:36:58.242 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:00.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:37:00.263 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:02.302 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:04.350 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:06.303 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:37:07.910 ────</div>
+<div class=u>18:37:08.036 controller     WARNING scheduler cycle overrun: 118.81 ms</div>
+<div class=u>18:37:08.038 controller     WARNING predicting pose ahead by 0.0888s</div>
+<div class=u>18:37:08.046 controller     WARNING planner tick late by 0.1438s</div>
+<div>18:37:08.276 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:10.003 controller     INFO    FPS summary: joint_control=59.6 Hz</div>
+<div>18:37:10.306 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:12.324 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:14.278 ui_api         INFO    GET /api/status 200</div>
+<div>18:37:16.279 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:38:35.282</span><span class=g>gap 0.18 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:38:16.004 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:18.005 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:19.996 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:38:22.001 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:23.987 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:25.938 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:27.957 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:28.907 recorder       INFO    recording segment closed in 0.70s</div>
+<div>18:38:29.973 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:30.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:38:31.977 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:33.982 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:38:35.282 ────</div>
+<div class=u>18:38:35.466 controller     WARNING scheduler cycle overrun: 181.02 ms</div>
+<div class=u>18:38:35.468 controller     WARNING predicting pose ahead by 0.1510s</div>
+<div class=u>18:38:35.476 controller     WARNING planner tick late by 0.2060s</div>
+<div>18:38:36.001 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:38.049 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:40.003 controller     INFO    FPS summary: joint_control=59.0 Hz</div>
+<div>18:38:40.087 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:42.108 ui_api         INFO    GET /api/status 200</div>
+<div>18:38:44.098 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:40:00.092</span><span class=g>gap 0.18 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:39:42.069 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:44.104 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:46.105 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:48.114 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:50.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:39:50.164 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:52.137 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:54.150 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:56.175 ui_api         INFO    GET /api/status 200</div>
+<div>18:39:58.162 ui_api         INFO    GET /api/status 200</div>
+<div>18:40:00.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div class=mark>──── control break starts 18:40:00.092 ────</div>
+<div>18:40:00.184 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:40:00.276 controller     WARNING scheduler cycle overrun: 173.31 ms</div>
+<div class=u>18:40:00.278 controller     WARNING predicting pose ahead by 0.1433s</div>
+<div class=u>18:40:00.286 controller     WARNING planner tick late by 0.1983s</div>
+<div>18:40:02.173 ui_api         INFO    GET /api/status 200</div>
+<div>18:40:04.176 ui_api         INFO    GET /api/status 200</div>
+<div>18:40:04.444 hw_driver      WARNING node left_arm did not answer status probe</div>
+<div>18:40:05.444 hw_driver      WARNING node right_arm did not answer status probe</div>
+<div>18:40:06.187 ui_api         INFO    GET /api/status 200</div>
+<div>18:40:06.444 hw_driver      WARNING node torso did not answer status probe</div>
+<div>18:40:07.444 hw_driver      WARNING node base did not answer status probe</div>
+<div>18:40:08.205 ui_api         INFO    GET /api/status 200</div>
+<div>18:40:08.444 hw_driver      WARNING node head did not answer status probe</div>
+<div>18:40:09.444 hw_driver      INFO    status probe done: 0 of 5 nodes answered</div>
+<div>18:40:10.003 controller     INFO    FPS summary: joint_control=58.9 Hz</div>
+<div>18:40:10.187 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:41:29.802</span><span class=g>gap 0.13 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:41:10.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:41:10.305 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:12.270 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:14.245 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:16.206 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:18.191 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:20.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:41:20.222 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:22.224 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:24.219 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:26.178 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:28.167 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:28.793 recorder       INFO    recording segment closed in 0.69s</div>
+<div class=mark>──── control break starts 18:41:29.802 ────</div>
+<div class=u>18:41:29.936 controller     WARNING scheduler cycle overrun: 133.16 ms</div>
+<div class=u>18:41:29.938 controller     WARNING predicting pose ahead by 0.1032s</div>
+<div class=u>18:41:29.946 controller     WARNING planner tick late by 0.1582s</div>
+<div>18:41:30.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:41:30.217 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:32.237 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:34.231 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:36.229 ui_api         INFO    GET /api/status 200</div>
+<div>18:41:38.259 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:42:59.907</span><span class=g>gap 0.18 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:42:39.987 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:40.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:42:41.967 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:43.958 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:45.973 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:48.004 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:49.989 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:50.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:42:51.977 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:53.985 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:56.028 ui_api         INFO    GET /api/status 200</div>
+<div>18:42:57.997 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:42:59.907 ────</div>
+<div>18:43:00.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+<div>18:43:00.044 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:43:00.084 controller     WARNING scheduler cycle overrun: 166.48 ms</div>
+<div class=u>18:43:00.086 controller     WARNING predicting pose ahead by 0.1365s</div>
+<div class=u>18:43:00.094 controller     WARNING planner tick late by 0.1915s</div>
+<div>18:43:02.065 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:04.053 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:06.069 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:08.052 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:10.003 controller     INFO    FPS summary: joint_control=59.4 Hz</div>
+<div>18:43:10.009 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c3)'><summary><span class=dot></span><span class=t>18:43:54.000</span><span class=g>min 41 Hz</span><span class=r><span class="svc">sysmon</span> gpu clock throttled to &lt;N&gt;% (temp &lt;N&gt; C)</span></summary><div class=logs>
+<div>18:43:34.070 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:36.068 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:38.107 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:40.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:43:40.101 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:42.100 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:44.101 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:46.134 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:48.151 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:50.003 controller     INFO    FPS summary: joint_control=59.8 Hz</div>
+<div>18:43:50.175 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:52.165 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:43:52.385 sysmon         WARNING gpu clock throttled to 60% (temp 90 C)</div>
+<div class=mark>──── control break starts 18:43:54.000 ────</div>
+<div>18:43:54.119 ui_api         INFO    GET /api/status 200</div>
+<div>18:43:56.137 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:43:56.885 hw_driver      ERROR   E_CTRL_LOW_RATE: control rate low (41.5 Hz)</div>
+<div class=u>18:43:56.935 controller     INFO    sending robot to home pose</div>
+<div>18:43:58.142 ui_api         INFO    GET /api/status 200</div>
+<div>18:44:00.003 controller     INFO    FPS summary: joint_control=48.6 Hz</div>
+<div>18:44:00.169 ui_api         INFO    GET /api/status 200</div>
+<div>18:44:02.196 ui_api         INFO    GET /api/status 200</div>
+<div>18:44:04.158 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:44:04.450 sysmon         INFO    gpu clock restored</div>
+<div>18:44:06.130 ui_api         INFO    GET /api/status 200</div>
+<div>18:44:08.088 ui_api         INFO    GET /api/status 200</div>
+<div>18:44:10.003 controller     INFO    FPS summary: joint_control=51.7 Hz</div>
+<div>18:44:10.120 ui_api         INFO    GET /api/status 200</div>
+<div>18:44:12.080 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:46:08.477</span><span class=g>gap 0.18 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:45:49.950 ui_api         INFO    GET /api/status 200</div>
+<div>18:45:50.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:45:51.957 ui_api         INFO    GET /api/status 200</div>
+<div>18:45:53.939 ui_api         INFO    GET /api/status 200</div>
+<div>18:45:55.916 ui_api         INFO    GET /api/status 200</div>
+<div>18:45:57.946 ui_api         INFO    GET /api/status 200</div>
+<div>18:45:59.925 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:46:01.946 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:03.976 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:05.986 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:07.981 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:46:08.477 ────</div>
+<div class=u>18:46:08.656 controller     WARNING scheduler cycle overrun: 167.92 ms</div>
+<div class=u>18:46:08.658 controller     WARNING predicting pose ahead by 0.1379s</div>
+<div class=u>18:46:08.666 controller     WARNING planner tick late by 0.1929s</div>
+<div>18:46:10.003 controller     INFO    FPS summary: joint_control=59.1 Hz</div>
+<div>18:46:10.025 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:12.019 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:14.057 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:16.013 ui_api         INFO    GET /api/status 200</div>
+<div>18:46:18.006 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:47:40.725</span><span class=g>gap 0.12 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:48 stutter</span></span></summary><div class=logs>
+<div>18:47:21.984 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:23.964 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:25.937 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:27.945 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:28.734 recorder       INFO    recording segment closed in 0.66s</div>
+<div>18:47:29.927 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:30.003 controller     INFO    FPS summary: joint_control=60.2 Hz</div>
+<div>18:47:31.933 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:33.899 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:35.940 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:37.922 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:39.956 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:40.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div class=mark>──── control break starts 18:47:40.725 ────</div>
+<div class=u>18:47:40.844 controller     WARNING scheduler cycle overrun: 112.90 ms</div>
+<div class=u>18:47:40.846 controller     WARNING predicting pose ahead by 0.0829s</div>
+<div class=u>18:47:40.854 controller     WARNING planner tick late by 0.1379s</div>
+<div>18:47:41.922 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:43.952 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:46.000 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:47.989 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:49.942 ui_api         INFO    GET /api/status 200</div>
+<div>18:47:50.003 controller     INFO    FPS summary: joint_control=59.6 Hz</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:49:12.503</span><span class=g>gap 0.19 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:48:53.992 ui_api         INFO    GET /api/status 200</div>
+<div>18:48:56.034 ui_api         INFO    GET /api/status 200</div>
+<div>18:48:57.987 ui_api         INFO    GET /api/status 200</div>
+<div>18:48:59.997 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:49:02.044 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:04.028 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:06.073 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:08.088 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:10.003 controller     INFO    FPS summary: joint_control=59.8 Hz</div>
+<div>18:49:10.043 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:12.027 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:49:12.503 ────</div>
+<div class=u>18:49:12.691 controller     WARNING scheduler cycle overrun: 179.53 ms</div>
+<div class=u>18:49:12.693 controller     WARNING predicting pose ahead by 0.1495s</div>
+<div class=u>18:49:12.701 controller     WARNING planner tick late by 0.2045s</div>
+<div>18:49:14.022 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:15.996 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:18.021 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:19.989 ui_api         INFO    GET /api/status 200</div>
+<div>18:49:20.003 controller     INFO    FPS summary: joint_control=58.9 Hz</div>
+<div>18:49:22.017 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:50:44.472</span><span class=g>gap 0.14 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:50:25.764 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:27.731 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:28.776 recorder       INFO    recording segment closed in 0.67s</div>
+<div>18:50:29.734 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:30.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:50:31.735 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:33.722 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:35.691 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:37.682 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:39.652 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:40.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:50:41.615 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:43.589 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:50:44.472 ────</div>
+<div class=u>18:50:44.608 controller     WARNING scheduler cycle overrun: 122.54 ms</div>
+<div class=u>18:50:44.610 controller     WARNING predicting pose ahead by 0.0925s</div>
+<div class=u>18:50:44.618 controller     WARNING planner tick late by 0.1475s</div>
+<div>18:50:45.626 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:47.626 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:49.665 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:50.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:50:51.617 ui_api         INFO    GET /api/status 200</div>
+<div>18:50:53.661 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:52:12.846</span><span class=g>gap 0.16 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:52 stutter</span><span class=note>✎ 11:52 stutter</span><span class=note>✎ 11:53 stutter</span></span></summary><div class=logs>
+<div>18:51:53.633 ui_api         INFO    GET /api/status 200</div>
+<div>18:51:55.675 ui_api         INFO    GET /api/status 200</div>
+<div>18:51:57.626 ui_api         INFO    GET /api/status 200</div>
+<div>18:51:59.670 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:00.003 controller     INFO    FPS summary: joint_control=60.1 Hz</div>
+<div>18:52:01.661 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:03.652 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:05.611 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:07.585 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:09.609 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:10.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:52:11.627 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:52:12.846 ────</div>
+<div class=u>18:52:13.004 controller     WARNING scheduler cycle overrun: 144.86 ms</div>
+<div class=u>18:52:13.006 controller     WARNING predicting pose ahead by 0.1149s</div>
+<div class=u>18:52:13.014 controller     WARNING planner tick late by 0.1699s</div>
+<div>18:52:13.592 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:15.576 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:17.540 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:19.510 ui_api         INFO    GET /api/status 200</div>
+<div>18:52:20.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:52:21.482 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:53:47.489</span><span class=g>gap 0.15 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:53:28.032 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:28.568 recorder       INFO    recording segment closed in 0.75s</div>
+<div>18:53:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:53:30.012 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:32.058 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:34.061 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:36.106 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:38.067 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:40.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:53:40.114 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:42.143 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:44.118 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:46.152 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:53:47.489 ────</div>
+<div class=u>18:53:47.642 controller     WARNING scheduler cycle overrun: 138.98 ms</div>
+<div class=u>18:53:47.644 controller     WARNING predicting pose ahead by 0.1090s</div>
+<div class=u>18:53:47.652 controller     WARNING planner tick late by 0.1640s</div>
+<div>18:53:48.125 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:50.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:53:50.095 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:52.091 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:54.064 ui_api         INFO    GET /api/status 200</div>
+<div>18:53:56.064 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:55:11.999</span><span class=g>gap 0.19 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:54:52.172 ui_api         INFO    GET /api/status 200</div>
+<div>18:54:54.207 ui_api         INFO    GET /api/status 200</div>
+<div>18:54:56.219 ui_api         INFO    GET /api/status 200</div>
+<div>18:54:58.198 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:55:00.157 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:02.134 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:04.154 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:04.825 hw_driver      WARNING node left_arm did not answer status probe</div>
+<div>18:55:05.825 hw_driver      WARNING node right_arm did not answer status probe</div>
+<div>18:55:06.148 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:06.825 hw_driver      WARNING node torso did not answer status probe</div>
+<div>18:55:07.825 hw_driver      WARNING node base did not answer status probe</div>
+<div>18:55:08.164 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:08.825 hw_driver      WARNING node head did not answer status probe</div>
+<div>18:55:09.825 hw_driver      INFO    status probe done: 0 of 5 nodes answered</div>
+<div>18:55:10.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:55:10.195 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:55:11.999 ────</div>
+<div>18:55:12.157 ui_api         INFO    GET /api/status 200</div>
+<div class=u>18:55:12.191 controller     WARNING scheduler cycle overrun: 187.18 ms</div>
+<div class=u>18:55:12.193 controller     WARNING predicting pose ahead by 0.1572s</div>
+<div class=u>18:55:12.201 controller     WARNING planner tick late by 0.2122s</div>
+<div>18:55:14.175 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:16.129 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:18.162 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:20.003 controller     INFO    FPS summary: joint_control=59.1 Hz</div>
+<div>18:55:20.130 ui_api         INFO    GET /api/status 200</div>
+<div>18:55:22.107 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:56:43.870</span><span class=g>gap 0.18 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms<span class=note>✎ 11:56 stutter</span></span></summary><div class=logs>
+<div>18:56:24.252 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:26.265 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:28.259 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:28.628 recorder       INFO    recording segment closed in 0.71s</div>
+<div>18:56:30.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:56:30.305 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:32.291 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:34.307 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:36.321 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:38.308 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:40.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:56:40.310 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:42.328 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:56:43.870 ────</div>
+<div class=u>18:56:44.050 controller     WARNING scheduler cycle overrun: 168.57 ms</div>
+<div class=u>18:56:44.052 controller     WARNING predicting pose ahead by 0.1386s</div>
+<div class=u>18:56:44.060 controller     WARNING planner tick late by 0.1936s</div>
+<div>18:56:44.369 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:46.369 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:48.355 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:50.003 controller     INFO    FPS summary: joint_control=59.2 Hz</div>
+<div>18:56:50.403 ui_api         INFO    GET /api/status 200</div>
+<div>18:56:52.358 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+<details class=ev style='--c:var(--c0)'><summary><span class=dot></span><span class=t>18:58:16.269</span><span class=g>gap 0.12 s</span><span class=r><span class="svc">controller</span> scheduler cycle overrun: &lt;N&gt; ms</span></summary><div class=logs>
+<div>18:57:56.617 ui_api         INFO    GET /api/status 200</div>
+<div>18:57:58.636 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:00.003 controller     INFO    FPS summary: joint_control=60.0 Hz</div>
+<div>18:58:00.613 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:02.580 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:04.587 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:06.620 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:08.649 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:10.003 controller     INFO    FPS summary: joint_control=59.9 Hz</div>
+<div>18:58:10.634 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:12.598 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:14.599 ui_api         INFO    GET /api/status 200</div>
+<div class=mark>──── control break starts 18:58:16.269 ────</div>
+<div class=u>18:58:16.390 controller     WARNING scheduler cycle overrun: 111.41 ms</div>
+<div class=u>18:58:16.392 controller     WARNING predicting pose ahead by 0.0814s</div>
+<div class=u>18:58:16.400 controller     WARNING planner tick late by 0.1364s</div>
+<div>18:58:16.637 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:18.603 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:20.003 controller     INFO    FPS summary: joint_control=59.3 Hz</div>
+<div>18:58:20.627 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:22.594 ui_api         INFO    GET /api/status 200</div>
+<div>18:58:24.575 ui_api         INFO    GET /api/status 200</div>
+</div></details>
+</main></body></html>
