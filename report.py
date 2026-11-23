@@ -149,8 +149,9 @@ def render(meta, events, families, notes, ev):
         h.append("</table>")
         pur = " · ".join(f"family {fid}: {n}/{tot} {escape(str(top))}" for fid, top, n, tot in ev["purity"])
         h.append(f"<p class=explain>False positives: <b>{ev['false_positives']}</b>. Family purity: {pur}. "
-                 f"Physical arm drops: {ev['drops']}, of which only {ev['drops_with_watchdog']} logged a watchdog "
-                 f"error — the error code alone undercounts drops, the control-gap length does not.</p>")
+                 f"Physical arm drops: {ev['drops']}, of which {ev['drops_with_watchdog']} logged a watchdog error "
+                 f"(the simulator logs it on ~85% of drops by design; detection does not depend on it). "
+                 f"Results are on synthetic data.</p>")
 
     # ---- event feed
     h.append("<h2>Event feed</h2><p class=explain>Click an event to see every log line in its context window. "

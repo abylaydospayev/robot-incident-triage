@@ -81,7 +81,7 @@ details.ev summary .g,details.ev summary .r{grid-column:2}}
 <tr><td>solver_stall</td><td>35</td><td>35</td><td>9</td></tr>
 <tr><td>thermal</td><td>3</td><td>3</td><td>0</td></tr>
 </table>
-<p class=explain>False positives: <b>0</b>. Family purity: family 0: 35/35 solver_stall · family 1: 7/7 camera_empty · family 2: 3/3 clock_step · family 3: 3/3 thermal. Physical arm drops: 5, of which only 3 logged a watchdog error — the error code alone undercounts drops, the control-gap length does not.</p>
+<p class=explain>False positives: <b>0</b>. Family purity: family 0: 35/35 solver_stall · family 1: 7/7 camera_empty · family 2: 3/3 clock_step · family 3: 3/3 thermal. Physical arm drops: 5, of which 3 logged a watchdog error (the simulator logs it on ~85% of drops by design; detection does not depend on it). Results are on synthetic data.</p>
 <h2>Event feed</h2><p class=explain>Click an event to see every log line in its context window. Unusual lines are highlighted.</p>
 <details class=ev style='--c:var(--c1)'><summary><span class=dot></span><span class=t>17:08:34.416</span><span class=g>gap 0.92 s</span><span class=r><span class="svc">policy_client</span> camera &#x27;cam_top&#x27; returned empty frame<span class=note>✎ 10:08 freeze</span></span></summary><div class=logs>
 <div>17:08:14.663 ui_api         INFO    GET /api/status 200</div>
